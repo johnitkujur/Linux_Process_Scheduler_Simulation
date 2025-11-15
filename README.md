@@ -1,4 +1,4 @@
-# CFS Process Scheduler Simulation
+# Linux Process Scheduler Simulation
 A simulation of a Linux Completely Fair Scheduler (CFS) implemented using C++ multithreading, condition variables, and a simplified run queue structure.
 It models how an OS schedules processes across multiple CPU cores, handles interrupts, tracks runtime statistics, and manages fair execution.
 
