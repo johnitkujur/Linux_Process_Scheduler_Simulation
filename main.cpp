@@ -29,7 +29,7 @@ void add_process_in_list(Process_Sched& proc_sched, vector<proc>& p_list)
         }
 }
 
-#ifdef WINDOWS_SYSTEM
+#if WINDOWS_SYSTEM
 void add_interrupt_test(void)
 {
         this_thread::sleep_for(chrono::milliseconds(2000));
@@ -39,7 +39,6 @@ void add_interrupt_test(void)
 }
 #else
 void my_signal_handler(int sig_num) {
-        signal(SIGINT, my_signal_handler); 
         if (sig_num == SIGTSTP )
                 interrupt_sched.add_interrupt();
 }
@@ -54,7 +53,7 @@ static void thread_init(int total_thread, Process_Sched& proc_sched, vector<proc
         thread process_thread(add_process_in_list, std::ref(proc_sched), std::ref(p_list));
 
 
-#ifdef WINDOWS_SYSTEM
+#if WINDOWS_SYSTEM
         thread interrupt_thread(add_interrupt_test);
         interrupt_thread.join();
 #endif
@@ -86,7 +85,7 @@ void print_process_table(const vector<proc>& p_list)
 
 int main()
 {
-#ifndef WINDOWS_SYSTEM
+#if !WINDOWS_SYSTEM
         signal(SIGTSTP, my_signal_handler);
 #endif
 
