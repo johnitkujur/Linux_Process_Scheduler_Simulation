@@ -8,59 +8,109 @@
 
 using namespace std;
 
+//For Windows set this to 1
+#define WINDOWS_SYSTEM 1
 
-static void thread_init(int total_thread, Process_Sched& proc_sched)
+bool compareArrivalTime(const Process& a, const Process& b) {
+        return a.arrival_time < b.arrival_time;
+}
+
+void add_process_in_list(Process_Sched& proc_sched, vector<proc>& p_list)
+{
+        int it = 0;
+        sort(p_list.begin(), p_list.end(), compareArrivalTime);
+        
+        while(it < p_list.size()) {
+                int time_diff = p_list[it].arrival_time - get_time_since_start();
+                if(time_diff > 0)
+                        this_thread::sleep_for(chrono::milliseconds(time_diff));
+                proc_sched.add_process(&p_list[it]);
+                it++;
+        }
+}
+
+#ifdef WINDOWS_SYSTEM
+void add_interrupt_test(void)
+{
+        this_thread::sleep_for(chrono::milliseconds(2000));
+        interrupt_sched.add_interrupt();
+        this_thread::sleep_for(chrono::milliseconds(2000));
+        interrupt_sched.add_interrupt();
+}
+#else
+void my_signal_handler(int sig_num) {
+        signal(SIGINT, my_signal_handler); 
+        if (sig_num == SIGTSTP )
+                interrupt_sched.add_interrupt();
+}
+#endif
+
+static void thread_init(int total_thread, Process_Sched& proc_sched, vector<proc>& p_list)
 {
         vector<thread> threads;
 	for(int i = 0; i < total_thread; i++) {
 		threads.emplace_back(&Process_Sched::schedule, &proc_sched, i+1);
 	}
+        thread process_thread(add_process_in_list, std::ref(proc_sched), std::ref(p_list));
+
+
+#ifdef WINDOWS_SYSTEM
+        thread interrupt_thread(add_interrupt_test);
+        interrupt_thread.join();
+#endif
+        process_thread.join();
 
 	for(int i = 0; i < total_thread; i++) {
 		threads[i].join();
 	}
 }
 
-
-void my_signal_handler(int sig_num) {
-        cout<<"Signal handler called\n";
-        signal(SIGINT, my_signal_handler); 
-        if (sig_num == SIGTSTP )
-                interrupt_sched.add_interrupt();
-}
-
-void add_interrupt_test()
+void print_process_table(const vector<proc>& p_list)
 {
-        this_thread::sleep_for(chrono::milliseconds(2000));
-        interrupt_sched.add_interrupt();
-        this_thread::sleep_for(chrono::milliseconds(2000));
-        interrupt_sched.add_interrupt();
+    cout << left << setw(8) << "PID"
+         << setw(12) << "Arrival"
+         << setw(12) << "Priority"
+         << setw(16) << "Total Time Left"
+         << "\n";
+
+    cout << string(70, '-') << "\n";
+
+    for (const auto& p : p_list) {
+        cout << left << setw(8) << p.pid
+             << setw(12) << p.arrival_time
+             << setw(12) << p.priority
+             << setw(16) << p.total_time_left
+             << "\n";
+    }
 }
 
 int main()
 {
-        Process_Sched proc_sched;
-        int total_process = 8, total_thread;
-        proc p_list[total_process];
-
-        p_list[0] = {1, 0, 0, 0, 0, 7};
-        p_list[1] = {2, 0, 1, 0, 0, 3};
-        p_list[2] = {3, 0, 1, 0, 0, 10};
-        p_list[3] = {4, 0, 1, 0, 0, 15};
-        p_list[4] = {5, 0, 0, 0, 0, 1};
-        p_list[5] = {6, 0, 0, 0, 0, 5};
-	p_list[6] = {7, 0, 1, 0, 0, 6};
-	p_list[7] = {8, 0, 0, 0, 0, 3};
-
+#ifndef WINDOWS_SYSTEM
         signal(SIGTSTP, my_signal_handler);
+#endif
+
+        int total_thread;
+
+        //Enter arrival time in ms
+        vector<proc>p_list = 
+        {       //pid   arrival_time    completion_time         priority        cpu_time        vruntime        total_time_left
+                {1,     0,              0,                      0,              0,              0,              7},
+                {2,     400,            0,                      1,              0,              0,              3},
+                {3,     3000,           0,                      1,              0,              0,              10},
+                {4,     500,            0,                      1,              0,              0,              15},
+                {5,     100,            0,                      0,              0,              0,              1},
+                {6,     0,              0,                      0,              0,              0,              5},
+                {7,     200,            0,                      1,              0,              0,              6},
+                {8,     0,              0,                      0,              0,              0,              3}
+        };
+
+        Process_Sched proc_sched(p_list.size());
+
+        //NUMBER_OF_PROCESS = p_list.size();
 
         cout<<"All Process:\n";
-        cout<<"pid\t priority\t total_time_left\n";
-
-        for (int i = 0; i < total_process; i++) {
-                cout<<p_list[i].pid<<"\t"<<p_list[i].priority<<"\t\t"<<p_list[i].total_time_left<<"\n";
-                proc_sched.add_process(&p_list[i]);
-        }
+        print_process_table(p_list);
 
 	cout<<"Enter number of thread you want to simulate? (Min - 1)\n";
 	cin>>total_thread;
@@ -72,10 +122,9 @@ int main()
 	
 	program_start_time = get_time();
 
-        thread newThread(add_interrupt_test); 
+        thread_init(total_thread, proc_sched, p_list);
 
-	thread_init(total_thread, proc_sched);
-        newThread.join(); 
-
+        proc_sched.print_stats();
+        
         return 0;
 }
